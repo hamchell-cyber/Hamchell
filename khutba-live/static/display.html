@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khutba en direct</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1410; --fg: #f4efe2; --accent: #c9a54b; --ar: #b9c7bd;
+    --fs-fr: clamp(28px, 4.2vw, 72px); --fs-ar: clamp(20px, 2.4vw, 40px);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; cursor: none; }
+  body { display: grid; grid-template-rows: auto 1fr auto; font-family: "Source Sans 3", Amiri, system-ui, sans-serif; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 1.2vh 3vw;
+           border-bottom: 2px solid var(--accent); color: var(--accent); font-size: clamp(16px, 1.6vw, 28px); }
+  header .ar { font-family: Amiri, serif; font-size: 1.3em; }
+  #etat { width: .7em; height: .7em; border-radius: 50%; background: #c0392b; display: inline-block; margin-inline-end: .5em; }
+  #etat.ok { background: #2ecc71; }
+  main { display: flex; flex-direction: column; justify-content: flex-end; padding: 2vh 4vw; gap: 2.5vh; overflow: hidden; }
+  .bloc { transition: opacity .6s; }
+  .bloc .fr { font-size: var(--fs-fr); line-height: 1.25; font-weight: 600; }
+  .bloc .ar { font-family: Amiri, serif; direction: rtl; text-align: right; color: var(--ar);
+              font-size: var(--fs-ar); line-height: 1.5; margin-bottom: .4vh; }
+  .bloc.ancien { opacity: .38; }
+  .bloc.ancien .fr { font-size: calc(var(--fs-fr) * .72); font-weight: 400; }
+  .masquer-ar .bloc .ar, .masquer-ar footer { display: none; }
+  footer { min-height: 6vh; padding: 1vh 4vw 2vh; direction: rtl; font-family: Amiri, serif;
+           color: var(--ar); opacity: .55; font-size: var(--fs-ar); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<header>
+  <span><span id="etat"></span>Traduction de la khutba en direct</span>
+  <span class="ar">خطبة الجمعة</span>
+</header>
+<main id="flux"></main>
+<footer id="partiel"></footer>
+<script>
+  // Raccourcis clavier : A = afficher/masquer l'arabe, + / - = taille du texte, C = effacer
+  const flux = document.getElementById('flux'), partiel = document.getElementById('partiel');
+  const MAX_BLOCS = 3; let echelle = 1;
+  const blocs = {};
+  function connecter() {
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+    ws.onopen = () => document.getElementById('etat').classList.add('ok');
+    ws.onclose = () => { document.getElementById('etat').classList.remove('ok'); setTimeout(connecter, 2000); };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'partiel') { partiel.textContent = m.ar; return; }
+      if (m.type === 'debut') {
+        partiel.textContent = '';
+        const d = document.createElement('div'); d.className = 'bloc';
+        d.innerHTML = '<div class="ar"></div><div class="fr"></div>';
+        d.querySelector('.ar').textContent = m.ar;
+        blocs[m.id] = d; flux.appendChild(d); ranger();
+      } else if (m.type === 'morceau' && blocs[m.id]) {
+        blocs[m.id].querySelector('.fr').textContent += m.txt;
+      } else if (m.type === 'fin' && blocs[m.id]) {
+        if (!blocs[m.id].querySelector('.fr').textContent.trim()) { blocs[m.id].remove(); }
+        delete blocs[m.id]; ranger();
+      }
+    };
+  }
+  function ranger() {
+    const els = [...flux.children];
+    els.forEach((el, i) => el.classList.toggle('ancien', i < els.length - 1));
+    while (flux.children.length > MAX_BLOCS) flux.firstChild.remove();
+    while (flux.scrollHeight > flux.clientHeight && flux.children.length > 1) flux.firstChild.remove();
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'a' || e.key === 'A') document.body.classList.toggle('masquer-ar');
+    if (e.key === '+' || e.key === '-') {
+      echelle = Math.max(.6, Math.min(1.8, echelle + (e.key === '+' ? .1 : -.1)));
+      document.documentElement.style.setProperty('--fs-fr', `calc(clamp(28px, 4.2vw, 72px) * ${echelle})`);
+    }
+    if (e.key === 'c' || e.key === 'C') flux.innerHTML = '';
+  });
+  connecter();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+anthropic>=2.8.0
+azure-cognitiveservices-speech>=1.53.0
+fastapi>=0.115
+uvicorn[standard]>=0.32
